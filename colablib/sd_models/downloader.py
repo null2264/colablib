@@ -2,6 +2,9 @@ import glob
 import os
 import subprocess
 import time
+import re
+import urllib.request as urlreq
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -15,6 +18,7 @@ from ..utils.py_utils import calculate_elapsed_time, get_filename
 
 
 SUPPORTED_EXTENSIONS = (".ckpt", ".safetensors", ".pt", ".pth")
+GIST_REGEX = re.compile(r"^https:\/\/gist\.github\.com\/(?:[a-zA-Z0-9_-]+\/)?(?P<id>[a-fA-F0-9]+)$")
 
 
 def parse_args(config):
@@ -50,6 +54,7 @@ def aria2_download(download_dir: str, filename: str, url: str, quiet: bool = Fal
         url             (str)           : URL to download the file from.
         user_header     (str, optional) : Optional header to use for the download request. Defaults to None.
     """
+    start_time: float | None = None
     if not quiet:
         start_time = time.time()
         cprint(f"Starting download of '{filename}' with aria2c...", color="green")
@@ -69,7 +74,7 @@ def aria2_download(download_dir: str, filename: str, url: str, quiet: bool = Fal
     aria2_args = parse_args(aria2_config)
     subprocess.run(["aria2c", *aria2_args])
 
-    if not quiet:
+    if start_time is not None:
         elapsed_time = calculate_elapsed_time(start_time)
         cprint(f"Download of '{filename}' completed. Took {elapsed_time}.", color="green")
 
@@ -85,6 +90,7 @@ def gdown_download(url: str, dst: str, quiet: bool = False):
     Returns:
         The output of the gdown download function.
     """
+    start_time: float | None = None
     if not quiet:
         start_time = time.time()
         cprint(f"Starting download with gdown...", color="green")
@@ -106,7 +112,7 @@ def gdown_download(url: str, dst: str, quiet: bool = False):
     os.chdir(dst)
     output = gdown.download_folder(url, quiet=True, use_cookies=False)
 
-    if not quiet:
+    if start_time is not None:
         elapsed_time = calculate_elapsed_time(start_time)
         cprint(f"Download completed. Took {elapsed_time}.", color="green")
 
@@ -136,7 +142,7 @@ def gdown_download(url: str, dst: str, quiet: bool = False):
 #     return file
 
 
-def get_modelname(url: str, quiet: bool = False, user_header: str = None) -> None:
+def get_modelname(url: str, quiet: bool = False, user_header: str = None) -> str:
     """
     Retrieves the model name from a given URL.
 
@@ -145,7 +151,7 @@ def get_modelname(url: str, quiet: bool = False, user_header: str = None) -> Non
         quiet (bool, optional)  : If True, suppresses output. Defaults to True.
 
     Returns:
-        str or None: The filename of the model file if it ends with a supported extension, otherwise None.
+        str: The filename of the model file if it ends with a supported extension, otherwise raise RuntimeError.
     """
     filename = (
         os.path.basename(url)
@@ -161,7 +167,7 @@ def get_modelname(url: str, quiet: bool = False, user_header: str = None) -> Non
     if not quiet:
         cprint(f"Failed to obtain filename.", color="yellow")
 
-    return None
+    raise RuntimeError("Failed to obtain filename.")
 
 
 def download(url: str, dst: str, filename: str = None, user_header: str = None, quiet: bool = False):
@@ -173,19 +179,37 @@ def download(url: str, dst: str, filename: str = None, user_header: str = None, 
         dst         (str)           : The directory to download the file to.
         user_header (str, optional) : Optional header to use for the download request. Defaults to None.
     """
-    if not filename:
-        filename = get_modelname(url, quiet=quiet)
+    try:
+        if not filename:
+            filename = get_modelname(url, quiet=quiet)
+    except RuntimeError:
+        return gdown_download(url, dst, quiet=quiet)
 
-    if "drive.google.com" in url:
-        gdown_download(url, dst, quiet=quiet)
-    elif "drive/MyDrive" in url:
+    if "drive/MyDrive" in url:
+        start_time: float | None = None
         if not quiet:
             start_time = time.time()
             cprint(f"Copying file '{filename}'...", color="green")
         Path(os.path.join(dst, filename)).write_bytes(Path(url).read_bytes())
-        if not quiet:
+        if start_time is not None:
             elapsed_time = calculate_elapsed_time(start_time)
             cprint(f"Copying completed. Took {elapsed_time}.", color="green")
+    elif "gist.github" in url:
+        fmt = "https://api.github.com/gists/{0}"
+        _id = GIST_REGEX.match(url)
+        if not _id:
+            if not quiet:
+                cprint("Failed to get gist ID", color="yellow")
+            return
+        resp = urlreq.urlopen(fmt.format(_id.group("id")))
+        content = json.loads(resp.read().decode("utf8"))
+        files = next(iter(content["files"].values()))
+        if not files:
+            if not quiet:
+                cprint("Failed to get gist files", color="yellow")
+            return
+        with open(os.path.join(dst, filename), "w") as fp:
+            fp.write(files["content"])
     else:
         if "huggingface.co" in url:
             url = url.replace("/blob/", "/resolve/")
@@ -216,7 +240,7 @@ def batch_download(urls: list, dst: str, desc: str = None, user_header: str = No
                     cprint(f"Failed to download file with error: {str(e)}", color="flat_red")
 
 
-def get_most_recent_file(directory: str, quiet: bool = False):
+def get_most_recent_file(directory: str, quiet: bool = False) -> str:
     """
     Gets the most recent file in a given directory.
 
@@ -224,7 +248,7 @@ def get_most_recent_file(directory: str, quiet: bool = False):
         directory (str) : The directory to search in.
 
     Returns:
-        str or None     : The path to the most recent file, or None if no files are found.
+        str     : The path to the most recent file, or raise RuntimeError if no files are found.
     """
     cprint(f"Getting filename from most recent file...", color="green")
 
@@ -232,7 +256,7 @@ def get_most_recent_file(directory: str, quiet: bool = False):
     if not files:
         if not quiet:
             cprint("No files found in directory.", color="yellow")
-        return None
+        raise RuntimeError("No files found in directory.")
 
     most_recent_file = max(files, key=os.path.getmtime)
     basename = os.path.basename(most_recent_file)
@@ -244,7 +268,7 @@ def get_most_recent_file(directory: str, quiet: bool = False):
     return most_recent_file
 
 
-def get_filepath(url: str, dst: str, quiet: bool = False):
+def get_filepath(url: str, dst: str, quiet: bool = False) -> str:
     """
     Returns the filepath of the model for a given URL and destination directory.
 
