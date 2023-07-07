@@ -1,16 +1,21 @@
+import glob
 import os
 import subprocess
-import glob
-import gdown
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+import gdown
+
 # from mega import Mega
 from tqdm import tqdm
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from ..utils.py_utils import get_filename, calculate_elapsed_time
+
 from ..colored_print import cprint
+from ..utils.py_utils import calculate_elapsed_time, get_filename
+
 
 SUPPORTED_EXTENSIONS = (".ckpt", ".safetensors", ".pt", ".pth")
+
 
 def parse_args(config):
     """
@@ -34,7 +39,8 @@ def parse_args(config):
 
     return args
 
-def aria2_download(download_dir: str, filename: str , url: str, quiet: bool=False, user_header: str=None):
+
+def aria2_download(download_dir: str, filename: str, url: str, quiet: bool = False, user_header: str = None):
     """
     Downloads a file using the aria2 download manager.
 
@@ -49,25 +55,26 @@ def aria2_download(download_dir: str, filename: str , url: str, quiet: bool=Fals
         cprint(f"Starting download of '{filename}' with aria2c...", color="green")
 
     aria2_config = {
-        "console-log-level"         : "error",
-        "summary-interval"          : 10,
-        "header"                    : user_header if "huggingface.co" in url else None,
-        "continue"                  : True,
-        "max-connection-per-server" : 16,
-        "min-split-size"            : "1M",
-        "split"                     : 16,
-        "dir"                       : download_dir,
-        "out"                       : filename,
-        "_url"                      : url,
+        "console-log-level": "error",
+        "summary-interval": 10,
+        "header": user_header if "huggingface.co" in url else None,
+        "continue": True,
+        "max-connection-per-server": 16,
+        "min-split-size": "1M",
+        "split": 16,
+        "dir": download_dir,
+        "out": filename,
+        "_url": url,
     }
     aria2_args = parse_args(aria2_config)
     subprocess.run(["aria2c", *aria2_args])
-    
+
     if not quiet:
         elapsed_time = calculate_elapsed_time(start_time)
         cprint(f"Download of '{filename}' completed. Took {elapsed_time}.", color="green")
 
-def gdown_download(url: str, dst: str, quiet: bool=False):
+
+def gdown_download(url: str, dst: str, quiet: bool = False):
     """
     Downloads a file from a Google Drive URL using gdown.
 
@@ -83,9 +90,9 @@ def gdown_download(url: str, dst: str, quiet: bool=False):
         cprint(f"Starting download with gdown...", color="green")
 
     options = {
-        "uc?id"         : {},
-        "file/d"        : {"fuzzy"      : True},
-        "drive/folders" : {"use_cookies": False},
+        "uc?id": {},
+        "file/d": {"fuzzy": True},
+        "drive/folders": {"use_cookies": False},
     }
 
     for key, kwargs in options.items():
@@ -105,6 +112,7 @@ def gdown_download(url: str, dst: str, quiet: bool=False):
 
     return output
 
+
 # def mega_download(url: str, dst: str, quiet: bool=False):
 #     """
 #     Downloads a file from a MEGA URL.
@@ -120,14 +128,15 @@ def gdown_download(url: str, dst: str, quiet: bool=False):
 #     mega = Mega()
 #     m = mega.login()  # add login credentials if needed
 #     file = m.download_url(url, dst)
-    
+
 #     if not quiet:
 #         elapsed_time = calculate_elapsed_time(start_time)
 #         cprint(f"Download completed. Took {elapsed_time}.", color="green")
 
 #     return file
 
-def get_modelname(url: str, quiet: bool=False, user_header: str=None) -> None:
+
+def get_modelname(url: str, quiet: bool = False, user_header: str = None) -> None:
     """
     Retrieves the model name from a given URL.
 
@@ -138,7 +147,11 @@ def get_modelname(url: str, quiet: bool=False, user_header: str=None) -> None:
     Returns:
         str or None: The filename of the model file if it ends with a supported extension, otherwise None.
     """
-    filename = os.path.basename(url) if "drive/MyDrive" in url or url.endswith(SUPPORTED_EXTENSIONS) else get_filename(url, user_header=user_header)
+    filename = (
+        os.path.basename(url)
+        if "drive/MyDrive" in url or url.endswith(SUPPORTED_EXTENSIONS)
+        else get_filename(url, user_header=user_header)
+    )
 
     if filename.endswith(SUPPORTED_EXTENSIONS):
         if not quiet:
@@ -150,7 +163,8 @@ def get_modelname(url: str, quiet: bool=False, user_header: str=None) -> None:
 
     return None
 
-def download(url: str, dst: str, filename:str= None, user_header: str=None, quiet: bool=False):
+
+def download(url: str, dst: str, filename: str = None, user_header: str = None, quiet: bool = False):
     """
     Downloads a file from a given URL to a destination directory.
 
@@ -177,6 +191,7 @@ def download(url: str, dst: str, filename:str= None, user_header: str=None, quie
             url = url.replace("/blob/", "/resolve/")
         aria2_download(dst, filename, url, user_header=user_header, quiet=quiet)
 
+
 def batch_download(urls: list, dst: str, desc: str = None, user_header: str = None, quiet: bool = False) -> None:
     """
     Downloads multiple files from a list of URLs.
@@ -188,7 +203,7 @@ def batch_download(urls: list, dst: str, desc: str = None, user_header: str = No
         quiet: If True, suppresses output. Defaults to False.
     """
     if desc is None:
-        desc = "Downloading..." 
+        desc = "Downloading..."
 
     with ThreadPoolExecutor() as executor:
         futures = [executor.submit(download, url, dst, user_header=user_header, quiet=True) for url in urls]
@@ -200,7 +215,8 @@ def batch_download(urls: list, dst: str, desc: str = None, user_header: str = No
                 except Exception as e:
                     cprint(f"Failed to download file with error: {str(e)}", color="flat_red")
 
-def get_most_recent_file(directory: str, quiet: bool=False):
+
+def get_most_recent_file(directory: str, quiet: bool = False):
     """
     Gets the most recent file in a given directory.
 
@@ -227,7 +243,8 @@ def get_most_recent_file(directory: str, quiet: bool=False):
 
     return most_recent_file
 
-def get_filepath(url: str, dst: str, quiet: bool=False):
+
+def get_filepath(url: str, dst: str, quiet: bool = False):
     """
     Returns the filepath of the model for a given URL and destination directory.
 

@@ -1,10 +1,13 @@
-import json
-import yaml
-import xmltodict
-import toml
-import requests
 import fileinput
+import json
+
+import requests
+import toml
+import xmltodict
+import yaml
+
 from ..colored_print import cprint
+
 
 def determine_file_format(filename):
     """
@@ -21,6 +24,7 @@ def determine_file_format(filename):
         return file_extension
     else:
         return "txt"
+
 
 def read_config(filename):
     """
@@ -94,14 +98,15 @@ def change_line(filename, old_string, new_string):
         for line in file:
             print(line.replace(old_string, new_string), end='')
 
+
 def pastebin_reader(id):
     if "pastebin.com" in id:
-        url = id 
+        url = id
         if 'raw' not in url:
-                url = url.replace('pastebin.com', 'pastebin.com/raw')
+            url = url.replace('pastebin.com', 'pastebin.com/raw')
     else:
         url = "https://pastebin.com/raw/" + id
     response = requests.get(url)
-    response.raise_for_status() 
+    response.raise_for_status()
     lines = response.text.split('\n')
     return lines

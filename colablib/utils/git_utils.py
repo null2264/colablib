@@ -1,10 +1,13 @@
-import subprocess
-import os
-import requests
 import concurrent.futures
-from tqdm import tqdm
+import os
+import subprocess
 from urllib.parse import urlparse
+
+import requests
+from tqdm import tqdm
+
 from ..colored_print import cprint
+
 
 def clone_repo(url, cwd=None, directory=None, branch=None, commit_hash=None, recursive=False, quiet=False, batch=False):
     """
@@ -23,7 +26,7 @@ def clone_repo(url, cwd=None, directory=None, branch=None, commit_hash=None, rec
 
         if not directory:
             directory = parsed_url
-            
+
         if os.path.exists(os.path.join(cwd, parsed_url) if cwd else directory):
             message = f"Directory '{parsed_url}' already exists."
             if not quiet and not batch:
@@ -49,7 +52,7 @@ def clone_repo(url, cwd=None, directory=None, branch=None, commit_hash=None, rec
         if not quiet and not batch:
             color = "green" if not any(item in message for item in ["Failed", "Error", "failed", "error"]) else "red"
             cprint(message, color=color)
-            
+
         if commit_hash and directory:
             checkout_repo(directory, commit_hash, quiet=quiet, batch=batch)
 
@@ -62,10 +65,11 @@ def clone_repo(url, cwd=None, directory=None, branch=None, commit_hash=None, rec
 
     return message
 
+
 def checkout_repo(directory, reference, create=False, args="", quiet=False, batch=False):
     """
     Checks out a specific reference in a Git repository.
-    
+
     Args:
         directory  (str)   : The directory of the repository.
         reference  (str)   : The branch or commit hash to checkout.
@@ -97,25 +101,26 @@ def checkout_repo(directory, reference, create=False, args="", quiet=False, batc
 
     return message
 
+
 def patch_repo(url, dir, cwd, path=None, args=None, whitespace_fix=False, quiet=False):
     """
     Function to patch a repo with specified arguments.
-    
+
     Args:
         url (str): URL of the repo.
         dir (str): Directory to download the repo.
         cwd (str): Current working directory.
         args (list, optional): List of arguments for the 'git apply' command.
         whitespace_fix (bool, optional): Whether to apply the '--whitespace=fix' argument.
-        
+
     Returns:
         CompletedProcess: Completed process.
     """
-    
+
     # Check if url, dir and cwd are strings
     if not isinstance(url, str) or not isinstance(dir, str) or not isinstance(cwd, str):
         raise ValueError("'url', 'dir' and 'cwd' must be strings")
-    
+
     # Check if args is a list or None
     if args is not None and not isinstance(args, list):
         raise ValueError("'args' must be a list of strings or None")
@@ -123,17 +128,17 @@ def patch_repo(url, dir, cwd, path=None, args=None, whitespace_fix=False, quiet=
     # Check if whitespace_fix is a boolean
     if not isinstance(whitespace_fix, bool):
         raise ValueError("'whitespace_fix' must be a boolean")
-    
+
     os.makedirs(dir, exist_ok=True)
 
     filename = ""
-    
+
     if url:
         filename = urlparse(url).path.split('/')[-1].replace('.git', '')
         try:
             response = requests.get(url, stream=True)
             response.raise_for_status()
-            
+
             with open(os.path.join(dir, filename), 'wb') as file:
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
@@ -143,7 +148,7 @@ def patch_repo(url, dir, cwd, path=None, args=None, whitespace_fix=False, quiet=
             return
     elif path:
         filename = os.path.basename(url)
-    
+
     if not path:
         path = os.path.join(dir, filename)
 
@@ -153,17 +158,18 @@ def patch_repo(url, dir, cwd, path=None, args=None, whitespace_fix=False, quiet=
     if args:
         cmd.extend(args)
     cmd.append(path)
-    
+
     try:
         return subprocess.run(cmd, cwd=cwd, check=True)
     except subprocess.CalledProcessError as e:
         if not quiet:
             cprint(f"Error applying patch. Error: {str(e)}", color="flat_red")
 
+
 def reset_repo(directory, commit, hard=False, args="", quiet=False):
     """
     Resets a Git repository to a specific commit.
-    
+
     Args:
         directory (str)  : The directory of the repository.
         commit    (str)  : The commit hash to reset to.
@@ -193,6 +199,7 @@ def reset_repo(directory, commit, hard=False, args="", quiet=False):
         cprint(message, color=color)
 
     return message
+
 
 def update_repo(fetch=False, pull=True, origin=None, cwd=None, args="", quiet=False, batch=False):
     """
@@ -249,6 +256,7 @@ def update_repo(fetch=False, pull=True, origin=None, cwd=None, args="", quiet=Fa
 
     return message
 
+
 def batch_clone(urls, desc=None, cwd=None, directory=None, branch=None, commit_hash=None, recursive=False, quiet=False):
     """
     Clones multiple Git repositories in parallel.
@@ -269,17 +277,30 @@ def batch_clone(urls, desc=None, cwd=None, directory=None, branch=None, commit_h
 
     # Use a ThreadPoolExecutor to clone repositories in parallel
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(clone_repo, url, cwd=cwd, directory=directory, branch=branch, commit_hash=commit_hash, recursive=recursive, quiet=quiet, batch=True): url for url in urls}
+        futures = {
+            executor.submit(
+                clone_repo,
+                url,
+                cwd=cwd,
+                directory=directory,
+                branch=branch,
+                commit_hash=commit_hash,
+                recursive=recursive,
+                quiet=quiet,
+                batch=True,
+            ): url
+            for url in urls
+        }
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(urls), desc=desc):
             try:
                 results[future] = future.result()
             except Exception as e:
                 cprint(f"Error while cloning a repository: {e}", color="flat_red")
                 return None
-            
+
     if not quiet:
         if not any(message for message in results.values()):
-                cprint()
+            cprint()
         for future, message in results.items():
             if message:
                 if "already exists" in message.lower():
@@ -290,6 +311,7 @@ def batch_clone(urls, desc=None, cwd=None, directory=None, branch=None, commit_h
                     color = "red"
                 cprint(" [-]", message, color=color)
         cprint()
+
 
 def batch_update(fetch=False, pull=True, origin=None, directory=None, args="", quiet=False, desc=None):
     """
@@ -305,7 +327,9 @@ def batch_update(fetch=False, pull=True, origin=None, directory=None, args="", q
         desc        (str, optional)         : The description to display on the progress bar. Defaults to "Updating...".
     """
     if not isinstance(directory, list):
-        directory = [os.path.join(directory, name) for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
+        directory = [
+            os.path.join(directory, name) for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))
+        ]
 
     if desc is None:
         desc = cprint("Updating...", color="green", tqdm_desc=True)
@@ -313,7 +337,12 @@ def batch_update(fetch=False, pull=True, origin=None, directory=None, args="", q
     results = {}  # Store update status messages
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(update_repo, fetch=fetch, pull=pull, origin=origin, cwd=cwd, args=args, quiet=quiet, batch=True): cwd for cwd in directory}
+        futures = {
+            executor.submit(
+                update_repo, fetch=fetch, pull=pull, origin=origin, cwd=cwd, args=args, quiet=quiet, batch=True
+            ): cwd
+            for cwd in directory
+        }
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(directory), desc=desc):
             try:
                 results[future] = future.result()  # Store update status message
@@ -323,7 +352,7 @@ def batch_update(fetch=False, pull=True, origin=None, directory=None, args="", q
 
     if not quiet:
         if not any(message for message in results.values()):
-                cprint()
+            cprint()
         for future, message in results.items():
             if message:
                 if not any(item.lower() in message.lower() for item in ["failed", "error"]):
@@ -334,6 +363,7 @@ def batch_update(fetch=False, pull=True, origin=None, directory=None, args="", q
                     else:
                         color = "red"
                 cprint(f" [-]", message, color=color)
+
 
 def validate_repo(directory):
     """
@@ -355,7 +385,9 @@ def validate_repo(directory):
         return result.stdout.strip()
 
     def get_repo_name():
-        result = subprocess.run(["git", "config", "--get", "remote.origin.url"], capture_output=True, text=True, cwd=directory)
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"], capture_output=True, text=True, cwd=directory
+        )
         output = result.stdout.strip()
         if result.returncode == 0 and output:
             url = output

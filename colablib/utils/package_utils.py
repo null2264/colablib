@@ -1,10 +1,13 @@
-import subprocess
 import os
-import zipfile
-import rarfile
 import shutil
+import subprocess
+import zipfile
 from collections import defaultdict
+
+import rarfile
+
 from ..colored_print import cprint
+
 
 def extract_package(package_name, target_directory, overwrite=False):
     """
@@ -49,10 +52,11 @@ def extract_package(package_name, target_directory, overwrite=False):
     else:
         cprint(f"Package type not supported: {package_name}", color="flat_red")
 
+
 def nested_zip_extractor(zip_path, extract_to):
     """
     This function extracts files from a zip file, maintaining the nested directory structure.
-    
+
     Args:
     zip_path (str): The path to the zip file to extract.
     extract_to (str): The directory to extract the zip file contents to.
@@ -76,7 +80,7 @@ def nested_zip_extractor(zip_path, extract_to):
                     for i in range(len(parts) - 1, 0, -1):
                         directory = '/'.join(parts[:i])
                         if len(dir_map[directory]) > 1 or i == 1:
-                            target_path = os.path.join(extract_to, *parts[i-1:])
+                            target_path = os.path.join(extract_to, *parts[i - 1 :])
                             os.makedirs(os.path.dirname(target_path), exist_ok=True)
                             with zip_ref.open(member) as source, open(target_path, 'wb') as target:
                                 shutil.copyfileobj(source, target)

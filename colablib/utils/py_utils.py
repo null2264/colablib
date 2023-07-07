@@ -1,12 +1,15 @@
-import os
 import math
+import os
 import re
-import requests
 import subprocess
 import sys
-import time 
-from urllib.parse import urlparse, unquote
+import time
+from urllib.parse import unquote, urlparse
+
+import requests
+
 from ..colored_print import cprint
+
 
 def is_google_colab():
     """
@@ -17,9 +20,11 @@ def is_google_colab():
     """
     try:
         import google.colab
+
         return True
     except ImportError:
         return False
+
 
 def calculate_elapsed_time(start_time):
     """
@@ -45,7 +50,8 @@ def calculate_elapsed_time(start_time):
     else:
         mins, secs = divmod(elapsed_time, 60)
         return f"{mins} mins {secs} sec"
-    
+
+
 def get_filename(url, user_header=None):
     """
     Extracts the filename from the given URL.
@@ -74,6 +80,7 @@ def get_filename(url, user_header=None):
 
     return filename
 
+
 def get_python_version():
     """
     Retrieves the current Python version.
@@ -83,6 +90,7 @@ def get_python_version():
     """
     return sys.version
 
+
 def get_torch_version():
     """
     Retrieves the current PyTorch version.
@@ -90,12 +98,14 @@ def get_torch_version():
     Returns:
         str: The PyTorch version.
     """
-    try: 
+    try:
         import torch
+
         return torch.__version__
     except ImportError:
         cprint("Failed to retrieve PyTorch version: PyTorch is not installed.", color="flat_red")
         return None
+
 
 def get_gpu_info(get_gpu_name=False):
     """
@@ -121,10 +131,12 @@ def get_gpu_info(get_gpu_name=False):
         if "NVIDIA-SMI has failed" in error_message and "No devices were found" in error_message:
             if is_google_colab():
                 from google.colab import runtime
+
                 runtime.unassign()
             raise RuntimeError("No GPU found. Unassigned GPU in Google Colab.")
         else:
             raise RuntimeError(f"Command execution failed with error: {error_message}")
+
 
 def convert_size(size_bytes: int) -> str:
     """
@@ -144,6 +156,7 @@ def convert_size(size_bytes: int) -> str:
     s = round(size_bytes / p, 2)
     return f"{s} {size_name[i]}"
 
+
 def get_file_size(zip_path: str) -> str:
     """
     Get the size of the file at the given path.
@@ -159,4 +172,3 @@ def get_file_size(zip_path: str) -> str:
 
     initial_size = os.path.getsize(zip_path)
     return convert_size(initial_size)
-
