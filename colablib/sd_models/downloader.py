@@ -1,10 +1,10 @@
 import glob
+import json
 import os
+import re
 import subprocess
 import time
-import re
 import urllib.request as urlreq
-import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
