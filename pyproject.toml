@@ -1,0 +1,61 @@
+[tool.poetry]
+name = "colablib"
+version = "0.1.9"
+description = "A utility library for Google Colab"
+authors = [
+  "Furqanil Taqwa <furqanil.taqwa@gmail.com>",
+  "null2264 <palembani@gmail.com>"
+]
+repository = "https://github.com/null2264/colablib"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+safetensors = "0.3.1"
+requests = "2.27.1"
+tqdm = "4.65.0"
+PyYAML = "6.0"
+gdown = "4.7.1"
+toml = "0.10.2"
+rarfile = "4.0"
+xmltodict = "0.13.0"
+pydantic = "1.10.9"
+
+[tool.poetry.group.test]
+optional = true
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.2.0"
+
+[tool.poetry.group.github-actions]
+optional = true
+
+[tool.poetry.group.github-actions.dependencies]
+pytest-github-actions-annotate-failures = "^0.1.7"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 125
+skip-string-normalization = true
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+lines_after_imports = 2
+
+[tool.aerich]
+tortoise_orm = "aerichConfig.t"
+location = "./src/main/migrations"
+src_folder = "./."
+
+[tool.pyright]
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportUnusedImport = "error"
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "strict"
